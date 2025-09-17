@@ -1,345 +1,303 @@
 # Install-BusinessCentralMCP.ps1
-# Automated Business Central MCP Server Installation Script
-# This script will set up everything needed to run the BC MCP server
+# Business Central MCP Server Installer
 
 param(
-    [string]$InstallPath = "$env:USERPROFILE\BusinessCentral-MCP",
-    [string]$GitHubRepo = "cetasvigneswarant/BCMCPServers",  # Replace with actual repo
-    [string]$GitHubToken = "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",  # GitHub Personal Access Token for private repos
+    [string]$InstallPath = "C:\Development\BusinessCentral-MCP",
+    [string]$GitHubRepo = "cetasvigneswarant/BCMCPServers",
+    [string]$GitHubToken = $env:GITHUB_TOKEN,
     [switch]$SkipPrerequisites = $false,
     [switch]$Force = $false
 )
 
-# Script configuration
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "Continue"
 
-# Color functions for better output
-function Write-ColorOutput($ForegroundColor, $Message) {
-    $currentColor = $Host.UI.RawUI.ForegroundColor
-    $Host.UI.RawUI.ForegroundColor = $ForegroundColor
-    Write-Output $Message
-    $Host.UI.RawUI.ForegroundColor = $currentColor
-}
+Write-Host "Business Central MCP Server Installer" -ForegroundColor Green
+Write-Host "======================================" -ForegroundColor Green
+Write-Host "Install Path: $InstallPath"
+Write-Host "Repository: $GitHubRepo"
+Write-Host ""
 
-function Write-Success($Message) { Write-ColorOutput "Green" "✅ $Message" }
-function Write-Info($Message) { Write-ColorOutput "Cyan" "ℹ️  $Message" }
-function Write-Warning($Message) { Write-ColorOutput "Yellow" "⚠️  $Message" }
-function Write-Error($Message) { Write-ColorOutput "Red" "❌ $Message" }
-
-# Banner
-Write-Host @"
-╔══════════════════════════════════════════════════════════════════╗
-║            Business Central MCP Server Installer                ║
-║                    Automated Setup Tool                         ║
-╚══════════════════════════════════════════════════════════════════╝
-"@ -ForegroundColor Cyan
-
-Write-Info "Starting installation process..."
-Write-Info "Install Path: $InstallPath"
-
-# Check if running as Administrator for certain operations
+# Check if running as Administrator
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Write-Warning "Not running as Administrator. Some features may require elevated privileges."
+    Write-Host "WARNING: Not running as Administrator. Some installations may fail." -ForegroundColor Yellow
 }
 
-# =============================================================================
-# PREREQUISITE CHECKS AND INSTALLATION
-# =============================================================================
-
+# Test Python installation
 function Test-PythonInstallation {
-    Write-Info "Checking Python installation..."
+    Write-Host "Checking Python installation..."
     
     try {
         $pythonVersion = python --version 2>$null
         if ($pythonVersion -match "Python (\d+\.\d+\.\d+)") {
             $version = [Version]$Matches[1]
             if ($version -ge [Version]"3.8.0") {
-                Write-Success "Python $($Matches[1]) found"
+                Write-Host "Python $($Matches[1]) found" -ForegroundColor Green
                 return $true
             } else {
-                Write-Warning "Python version $($Matches[1]) is too old. Minimum required: 3.8.0"
+                Write-Host "Python version $($Matches[1]) is too old. Minimum required: 3.8.0" -ForegroundColor Red
                 return $false
             }
         }
     } catch {
-        Write-Warning "Python not found in PATH"
+        Write-Host "Python not found in PATH" -ForegroundColor Red
         return $false
     }
     
     return $false
 }
 
+# Install Python
 function Install-Python {
-    Write-Info "Installing Python..."
+    Write-Host "Installing Python..."
     
     if ($isAdmin) {
-        # Try using winget first
         try {
-            Write-Info "Attempting to install Python using winget..."
+            Write-Host "Attempting to install Python using winget..."
             winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements
-            Write-Success "Python installed via winget"
+            Write-Host "Python installed via winget" -ForegroundColor Green
             return $true
         } catch {
-            Write-Warning "Winget installation failed, trying Chocolatey..."
+            Write-Host "Winget installation failed" -ForegroundColor Yellow
         }
         
-        # Try using Chocolatey
         try {
             if (Get-Command choco -ErrorAction SilentlyContinue) {
                 choco install python -y
-                Write-Success "Python installed via Chocolatey"
+                Write-Host "Python installed via Chocolatey" -ForegroundColor Green
                 return $true
             }
         } catch {
-            Write-Warning "Chocolatey installation failed"
+            Write-Host "Chocolatey installation failed" -ForegroundColor Yellow
         }
     }
     
-    # Manual download instructions
-    Write-Error "Automatic Python installation failed."
-    Write-Info "Please manually install Python:"
-    Write-Info "1. Go to https://python.org/downloads/"
-    Write-Info "2. Download Python 3.8 or later"
-    Write-Info "3. Run the installer with 'Add Python to PATH' checked"
-    Write-Info "4. Restart this script after installation"
+    Write-Host "Automatic Python installation failed." -ForegroundColor Red
+    Write-Host "Please manually install Python:"
+    Write-Host "1. Go to https://python.org/downloads/"
+    Write-Host "2. Download Python 3.8 or later"
+    Write-Host "3. Run the installer with 'Add Python to PATH' checked"
+    Write-Host "4. Restart this script after installation"
     
     return $false
 }
 
+# Test Git installation
 function Test-GitInstallation {
-    Write-Info "Checking Git installation..."
+    Write-Host "Checking Git installation..."
     
     try {
         $gitVersion = git --version 2>$null
         if ($gitVersion) {
-            Write-Success "Git found: $gitVersion"
+            Write-Host "Git found: $gitVersion" -ForegroundColor Green
             return $true
         }
     } catch {
-        Write-Warning "Git not found"
+        Write-Host "Git not found" -ForegroundColor Red
         return $false
     }
     
     return $false
 }
 
+# Install Git
 function Install-Git {
-    Write-Info "Installing Git..."
+    Write-Host "Installing Git..."
     
     if ($isAdmin) {
         try {
-            Write-Info "Attempting to install Git using winget..."
+            Write-Host "Attempting to install Git using winget..."
             winget install Git.Git --accept-source-agreements --accept-package-agreements
-            Write-Success "Git installed via winget"
+            Write-Host "Git installed via winget" -ForegroundColor Green
             return $true
         } catch {
-            Write-Warning "Winget installation failed"
+            Write-Host "Winget installation failed" -ForegroundColor Yellow
         }
         
         try {
             if (Get-Command choco -ErrorAction SilentlyContinue) {
                 choco install git -y
-                Write-Success "Git installed via Chocolatey"
+                Write-Host "Git installed via Chocolatey" -ForegroundColor Green
                 return $true
             }
         } catch {
-            Write-Warning "Chocolatey installation failed"
+            Write-Host "Chocolatey installation failed" -ForegroundColor Yellow
         }
     }
     
-    Write-Error "Automatic Git installation failed."
-    Write-Info "Please manually install Git:"
-    Write-Info "1. Go to https://git-scm.com/download/windows"
-    Write-Info "2. Download and run the installer"
-    Write-Info "3. Restart this script after installation"
+    Write-Host "Automatic Git installation failed." -ForegroundColor Red
+    Write-Host "Please manually install Git from: https://git-scm.com/download/windows"
     
     return $false
 }
 
-# =============================================================================
-# MAIN INSTALLATION PROCESS
-# =============================================================================
-
+# Initialize installation directory
 function Initialize-InstallationDirectory {
-    Write-Info "Setting up installation directory..."
+    Write-Host "Setting up installation directory..."
     
     if (Test-Path $InstallPath) {
         if ($Force) {
-            Write-Warning "Removing existing installation directory..."
+            Write-Host "Removing existing installation directory..." -ForegroundColor Yellow
             Remove-Item $InstallPath -Recurse -Force
         } else {
-            Write-Warning "Installation directory already exists: $InstallPath"
+            Write-Host "Installation directory already exists: $InstallPath" -ForegroundColor Yellow
             $response = Read-Host "Do you want to overwrite it? (y/N)"
             if ($response -eq 'y' -or $response -eq 'Y') {
                 Remove-Item $InstallPath -Recurse -Force
             } else {
-                Write-Error "Installation cancelled."
+                Write-Host "Installation cancelled." -ForegroundColor Red
                 exit 1
             }
         }
     }
     
     New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
-    Write-Success "Created installation directory: $InstallPath"
+    Write-Host "Created installation directory: $InstallPath" -ForegroundColor Green
 }
 
+# Get source files from GitHub
 function Get-SourceFiles {
-    Write-Info "Downloading source files from GitHub..."
+    Write-Host "Downloading source files from GitHub..."
+    
+    # Get GitHub token if not provided
+    if (-not $GitHubToken) {
+        Write-Host "GitHub Personal Access Token required for private repository access" -ForegroundColor Yellow
+        Write-Host "Create token at: https://github.com/settings/tokens"
+        Write-Host "Required scope: 'repo' (Full control of private repositories)"
+        $GitHubToken = Read-Host "Enter your GitHub token (ghp_...)"
+        
+        if (-not $GitHubToken) {
+            Write-Host "Token required for private repository access." -ForegroundColor Red
+            return $false
+        }
+    }
     
     try {
-        # Prepare git clone command with token if provided
-        $gitUrl = if ($GitHubToken) {
-            "https://$GitHubToken@github.com/$GitHubRepo.git"
-        } else {
-            "https://github.com/$GitHubRepo.git"
+        # Try git clone first
+        $gitUrl = "https://$GitHubToken@github.com/$GitHubRepo.git"
+        Write-Host "Cloning repository: $GitHubRepo"
+        
+        # Clone to temp directory then move files
+        $tempDir = Join-Path $env:TEMP "bc-mcp-temp"
+        if (Test-Path $tempDir) {
+            Remove-Item $tempDir -Recurse -Force
         }
         
-        # Clone the repository
-        Write-Info "Cloning repository: $GitHubRepo"
-        git clone $gitUrl $InstallPath
-        Write-Success "Repository cloned successfully"
+        git clone $gitUrl $tempDir
         
-        # Verify required files exist
-        $requiredFiles = @("bc_mcp_server.py", "config.py", "requirements.txt")
-        foreach ($file in $requiredFiles) {
-            $filePath = Join-Path $InstallPath $file
-            if (-not (Test-Path $filePath)) {
-                throw "Required file not found: $file"
+        # Move files to install directory
+        $sourceFiles = @("bc_mcp_server.py", "config.py", "requirements.txt")
+        foreach ($file in $sourceFiles) {
+            $sourcePath = Join-Path $tempDir $file
+            $destPath = Join-Path $InstallPath $file
+            
+            if (Test-Path $sourcePath) {
+                Copy-Item $sourcePath $destPath -Force
+                Write-Host "Copied: $file" -ForegroundColor Green
+            } else {
+                Write-Host "Warning: $file not found in repository" -ForegroundColor Yellow
             }
         }
         
-        Write-Success "All required files downloaded successfully"
+        # Copy any additional files
+        $additionalFiles = Get-ChildItem $tempDir -File | Where-Object { $_.Name -notmatch "\.git|\.md$|LICENSE" }
+        foreach ($file in $additionalFiles) {
+            if ($sourceFiles -notcontains $file.Name) {
+                Copy-Item $file.FullName (Join-Path $InstallPath $file.Name) -Force
+                Write-Host "Copied additional file: $($file.Name)" -ForegroundColor Green
+            }
+        }
+        
+        # Cleanup
+        Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        
+        Write-Host "All files downloaded successfully" -ForegroundColor Green
         return $true
         
     } catch {
-        Write-Error "Failed to download from GitHub: $_"
+        Write-Host "Git clone failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Attempting individual file downloads..."
         
-        # Fallback: Download individual files with token
-        if ($GitHubToken) {
-            Write-Info "Attempting to download files individually with authentication..."
-            try {
-                $headers = @{
-                    "Authorization" = "token $GitHubToken"
-                    "Accept" = "application/vnd.github.v3.raw"
-                }
-                
-                $baseUrl = "https://api.github.com/repos/$GitHubRepo/contents"
-                $files = @("bc_mcp_server.py", "config.py", "requirements.txt")
-                
-                foreach ($file in $files) {
-                    $filePath = Join-Path $InstallPath $file
-                    Write-Info "Downloading $file..."
-                    Invoke-WebRequest -Uri "$baseUrl/$file" -Headers $headers -OutFile $filePath
-                }
-                
-                Write-Success "Files downloaded individually with authentication"
-                return $true
-                
-            } catch {
-                Write-Error "Failed to download files with authentication: $_"
-                return $false
+        # Fallback: Download individual files
+        try {
+            $headers = @{
+                "Authorization" = "token $GitHubToken"
+                "Accept" = "application/vnd.github.v3.raw"
             }
-        } else {
-            Write-Error "Repository appears to be private. Please provide a GitHub token."
-            Write-Info "Run with: -GitHubToken 'your_token_here'"
+            
+            $files = @("bc_mcp_server.py", "config.py", "requirements.txt")
+            
+            foreach ($file in $files) {
+                $url = "https://api.github.com/repos/$GitHubRepo/contents/$file"
+                $filePath = Join-Path $InstallPath $file
+                Write-Host "Downloading $file..."
+                Invoke-WebRequest -Uri $url -Headers $headers -OutFile $filePath
+                Write-Host "Downloaded: $file" -ForegroundColor Green
+            }
+            
+            Write-Host "Files downloaded individually" -ForegroundColor Green
+            return $true
+            
+        } catch {
+            Write-Host "Failed to download files: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "Please check:"
+            Write-Host "1. Your GitHub token has 'repo' scope"
+            Write-Host "2. You have access to the repository: $GitHubRepo"
+            Write-Host "3. The repository contains the required files"
             return $false
         }
     }
 }
 
+# Setup Python virtual environment
 function Setup-PythonVirtualEnvironment {
-    Write-Info "Setting up Python virtual environment..."
+    Write-Host "Setting up Python virtual environment..."
     
     $venvPath = Join-Path $InstallPath "venv"
     
     try {
+        Set-Location $InstallPath
+        
         # Create virtual environment
-        Write-Info "Creating virtual environment..."
+        Write-Host "Creating virtual environment..."
         python -m venv $venvPath
         
         # Activate virtual environment
         $activateScript = Join-Path $venvPath "Scripts\Activate.ps1"
         if (Test-Path $activateScript) {
-            Write-Info "Activating virtual environment..."
+            Write-Host "Activating virtual environment..."
             & $activateScript
-            Write-Success "Virtual environment activated"
+            Write-Host "Virtual environment activated" -ForegroundColor Green
         } else {
             throw "Virtual environment activation script not found"
         }
         
         # Upgrade pip
-        Write-Info "Upgrading pip..."
+        Write-Host "Upgrading pip..."
         python -m pip install --upgrade pip
         
         # Install requirements
         $requirementsPath = Join-Path $InstallPath "requirements.txt"
         if (Test-Path $requirementsPath) {
-            Write-Info "Installing Python dependencies..."
+            Write-Host "Installing Python dependencies..."
             python -m pip install -r $requirementsPath
-            Write-Success "Dependencies installed successfully"
+            Write-Host "Dependencies installed successfully" -ForegroundColor Green
         } else {
-            Write-Warning "requirements.txt not found, installing basic dependencies..."
-            python -m pip install mcp requests asyncio-mqtt pydantic colorama
+            Write-Host "requirements.txt not found, installing basic dependencies..." -ForegroundColor Yellow
+            python -m pip install mcp requests pydantic colorama asyncio-mqtt
         }
         
         return $true
         
     } catch {
-        Write-Error "Failed to set up Python environment: $_"
+        Write-Host "Failed to set up Python environment: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
 }
 
-function Create-ClaudeDesktopConfig {
-    Write-Info "Creating Claude Desktop configuration..."
-    
-    try {
-        # Find Claude Desktop config directory
-        $claudeConfigDir = "$env:APPDATA\Claude"
-        if (-not (Test-Path $claudeConfigDir)) {
-            New-Item -ItemType Directory -Path $claudeConfigDir -Force | Out-Null
-        }
-        
-        $configPath = Join-Path $claudeConfigDir "claude_desktop_config.json"
-        $pythonExePath = Join-Path $InstallPath "venv\Scripts\python.exe"
-        $serverScriptPath = Join-Path $InstallPath "bc_mcp_server.py"
-        
-        # Create or update config
-        $config = @{}
-        if (Test-Path $configPath) {
-            $existingConfig = Get-Content $configPath -Raw | ConvertFrom-Json
-            $config = $existingConfig
-        }
-        
-        if (-not $config.mcpServers) {
-            $config | Add-Member -Name "mcpServers" -Value @{} -MemberType NoteProperty
-        }
-        
-        # Add Business Central MCP server configuration
-        $bcServerConfig = @{
-            command = $pythonExePath
-            args = @($serverScriptPath)
-            env = @{}
-        }
-        
-        $config.mcpServers | Add-Member -Name "business-central" -Value $bcServerConfig -MemberType NoteProperty -Force
-        
-        # Save configuration
-        $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
-        
-        Write-Success "Claude Desktop configuration created: $configPath"
-        return $true
-        
-    } catch {
-        Write-Error "Failed to create Claude Desktop configuration: $_"
-        return $false
-    }
-}
-
+# Create startup scripts
 function Create-StartupScripts {
-    Write-Info "Creating startup scripts..."
+    Write-Host "Creating startup scripts..."
     
     try {
         # Create batch file for easy startup
@@ -376,77 +334,113 @@ python -c "from config import validate_config; validate_config()"
         $configTestPath = Join-Path $InstallPath "test_config.ps1"
         $configTestContent | Set-Content $configTestPath -Encoding UTF8
         
-        Write-Success "Startup scripts created"
+        Write-Host "Startup scripts created" -ForegroundColor Green
         return $true
         
     } catch {
-        Write-Error "Failed to create startup scripts: $_"
+        Write-Host "Failed to create startup scripts: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
 }
 
-function Show-NextSteps {
-    Write-Host @"
-
-╔══════════════════════════════════════════════════════════════════╗
-║                     Installation Complete!                      ║
-╚══════════════════════════════════════════════════════════════════╝
-
-🎉 Business Central MCP Server has been installed successfully!
-
-📁 Installation Location: $InstallPath
-
-📋 NEXT STEPS:
-
-1. 🔧 CONFIGURE YOUR BUSINESS CENTRAL CONNECTION:
-   Edit: $InstallPath\config.py
-   - Replace all "YOUR_..._HERE" placeholders with your actual values
-   - See the configuration instructions in the file
-
-2. ✅ TEST YOUR CONFIGURATION:
-   Run: $InstallPath\test_config.ps1
-   This will validate your Business Central connection settings
-
-3. 🚀 START THE MCP SERVER:
-   Option A: Double-click $InstallPath\start_bc_mcp.bat
-   Option B: Run $InstallPath\start_bc_mcp.ps1
-
-4. 📱 USE WITH CLAUDE DESKTOP:
-   - Restart Claude Desktop application
-   - The Business Central MCP server should appear automatically
-   - Look for "business-central" in your available tools
-
-🔗 HELPFUL COMMANDS:
-   Test config:     cd "$InstallPath" && .\test_config.ps1
-   Start server:    cd "$InstallPath" && .\start_bc_mcp.ps1
-   Update server:   cd "$InstallPath" && git pull
-
-📚 AVAILABLE OPERATIONS:
-   👥 Customers: get_customers, create_customer, get_customer_by_name
-   📦 Items: get_items, create_item, get_item_by_number
-   📄 Sales Orders: get_sales_orders, create_sales_order, add_sales_order_line
-
-⚠️  REMEMBER:
-   - Keep your config.py file secure (contains sensitive credentials)
-   - Test your configuration before using with Claude
-   - Check the server logs if you encounter issues
-
-🆘 SUPPORT:
-   - Check the GitHub repository for documentation
-   - Review the setup instructions in config.py
-   - Ensure your Azure app registration has correct permissions
-
-"@ -ForegroundColor Green
+# Create Claude Desktop configuration
+function Create-ClaudeDesktopConfig {
+    Write-Host "Creating Claude Desktop configuration files..."
+    
+    try {
+        $pythonExePath = Join-Path $InstallPath "venv\Scripts\python.exe"
+        $serverScriptPath = Join-Path $InstallPath "bc_mcp_server.py"
+        
+        # Create config for Claude Desktop
+        $claudeConfig = @{
+            mcpServers = @{
+                "business-central" = @{
+                    command = $pythonExePath
+                    args = @($serverScriptPath)
+                    env = @{}
+                }
+            }
+        }
+        
+        # Save in installation directory
+        $configPath = Join-Path $InstallPath "claude_desktop_config.json"
+        $claudeConfig | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+        Write-Host "Claude config created: $configPath" -ForegroundColor Green
+        
+        # Also try to save to Claude's directory
+        $claudeConfigDir = "$env:APPDATA\Claude"
+        if (-not (Test-Path $claudeConfigDir)) {
+            New-Item -ItemType Directory -Path $claudeConfigDir -Force | Out-Null
+        }
+        
+        $claudeConfigPath = Join-Path $claudeConfigDir "claude_desktop_config.json"
+        
+        # Check if config already exists and merge
+        if (Test-Path $claudeConfigPath) {
+            try {
+                $existingConfig = Get-Content $claudeConfigPath -Raw | ConvertFrom-Json
+                if (-not $existingConfig.mcpServers) {
+                    $existingConfig | Add-Member -Name "mcpServers" -Value @{} -MemberType NoteProperty
+                }
+                $existingConfig.mcpServers | Add-Member -Name "business-central" -Value $claudeConfig.mcpServers."business-central" -MemberType NoteProperty -Force
+                $existingConfig | ConvertTo-Json -Depth 10 | Set-Content $claudeConfigPath -Encoding UTF8
+                Write-Host "Updated existing Claude Desktop configuration" -ForegroundColor Green
+            } catch {
+                $claudeConfig | ConvertTo-Json -Depth 10 | Set-Content $claudeConfigPath -Encoding UTF8
+                Write-Host "Created new Claude Desktop configuration" -ForegroundColor Green
+            }
+        } else {
+            $claudeConfig | ConvertTo-Json -Depth 10 | Set-Content $claudeConfigPath -Encoding UTF8
+            Write-Host "Created Claude Desktop configuration: $claudeConfigPath" -ForegroundColor Green
+        }
+        
+        return $true
+        
+    } catch {
+        Write-Host "Failed to create Claude Desktop configuration: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "You can manually copy the config from: $InstallPath\claude_desktop_config.json" -ForegroundColor Yellow
+        Write-Host "To: $env:APPDATA\Claude\claude_desktop_config.json" -ForegroundColor Yellow
+        return $false
+    }
 }
 
-# =============================================================================
-# MAIN EXECUTION
-# =============================================================================
+# Show completion message
+function Show-CompletionMessage {
+    Write-Host ""
+    Write-Host "======================================" -ForegroundColor Green
+    Write-Host "Installation Complete!" -ForegroundColor Green
+    Write-Host "======================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Installation Location: $InstallPath"
+    Write-Host ""
+    Write-Host "NEXT STEPS:"
+    Write-Host "1. Configure Business Central connection:"
+    Write-Host "   Edit: $InstallPath\config.py"
+    Write-Host "   Replace all 'YOUR_..._HERE' placeholders"
+    Write-Host ""
+    Write-Host "2. Test configuration:"
+    Write-Host "   Run: $InstallPath\test_config.ps1"
+    Write-Host ""
+    Write-Host "3. Start MCP server:"
+    Write-Host "   Run: $InstallPath\start_bc_mcp.bat"
+    Write-Host "   Or:  $InstallPath\start_bc_mcp.ps1"
+    Write-Host ""
+    Write-Host "4. Restart Claude Desktop application"
+    Write-Host ""
+    Write-Host "FILES CREATED:"
+    Get-ChildItem $InstallPath | ForEach-Object {
+        Write-Host "   $($_.Name)"
+    }
+    Write-Host ""
+    Write-Host "Claude Desktop Config: $env:APPDATA\Claude\claude_desktop_config.json"
+    Write-Host "Backup Config: $InstallPath\claude_desktop_config.json"
+}
 
+# Main execution
 try {
     # Check prerequisites
     if (-not $SkipPrerequisites) {
-        Write-Info "Checking prerequisites..."
+        Write-Host "Checking prerequisites..."
         
         if (-not (Test-PythonInstallation)) {
             if (-not (Install-Python)) {
@@ -458,10 +452,12 @@ try {
         
         if (-not (Test-GitInstallation)) {
             if (-not (Install-Git)) {
-                exit 1
+                Write-Host "Git installation failed, but continuing..." -ForegroundColor Yellow
+                Write-Host "Individual file downloads will be used instead." -ForegroundColor Yellow
+            } else {
+                # Refresh PATH
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
             }
-            # Refresh PATH
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
         }
     }
     
@@ -478,23 +474,23 @@ try {
         exit 1
     }
     
-    # Create Claude Desktop configuration
-    if (-not (Create-ClaudeDesktopConfig)) {
-        Write-Warning "Claude Desktop configuration failed, but installation can continue"
-    }
-    
     # Create startup scripts
     if (-not (Create-StartupScripts)) {
-        Write-Warning "Startup script creation failed, but installation can continue"
+        Write-Host "Startup script creation failed, but installation can continue" -ForegroundColor Yellow
     }
     
-    # Show next steps
-    Show-NextSteps
+    # Create Claude Desktop configuration
+    if (-not (Create-ClaudeDesktopConfig)) {
+        Write-Host "Claude Desktop configuration failed, but installation can continue" -ForegroundColor Yellow
+    }
+    
+    # Show completion message
+    Show-CompletionMessage
     
 } catch {
-    Write-Error "Installation failed: $_"
-    Write-Info "Please check the error messages above and try again"
+    Write-Host "Installation failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Please check the error messages above and try again" -ForegroundColor Red
     exit 1
 }
 
-Write-Success "Installation completed successfully!"
+Write-Host "Installation completed successfully!" -ForegroundColor Green
