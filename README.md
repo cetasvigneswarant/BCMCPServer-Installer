@@ -340,6 +340,7 @@ C:\BusinessCentralMCP\venv\Scripts\python.exe -c "from config import *; print('C
 - **Regularly rotate client secrets**
 - **Follow principle of least privilege for API permissions**
 - **Monitor API usage and access logs**
+- **Mask sensitive Data in API for usage **
 
 ## Support and Contributing
 
@@ -349,14 +350,7 @@ C:\BusinessCentralMCP\venv\Scripts\python.exe -c "from config import *; print('C
 2. **Review Business Central API documentation**
 3. **Verify Azure AD app configuration**
 4. **Test with Business Central API directly** using tools like Postman
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly with your Business Central environment
-5. Submit a pull request
+5. for more help contact Cetas ...
 
 ## License
 
