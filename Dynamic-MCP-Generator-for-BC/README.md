@@ -99,7 +99,7 @@ Creates your custom MCP server with tools for selected entities only.
 
 **Custom Path:**
 ```powershell
-.\setup-bc-mcp-dynamic-fixed.ps1 -InstallPath "C:\MyCustomPath"
+.\setup-bc-mcp-dynamic.ps1 -InstallPath "C:\MyCustomPath"
 ```
 
 ## Generated Files
